@@ -4,14 +4,14 @@ Lumen detection in colonoscopy images refers to the identification and location 
 It is very important to avoid navigational errors. Also, accurate detection of lumens can be effective in increasing the accuracy of lesion detection and improving the segmentation of polyps.
 
 In this repo, we represent our work on colonoscopy images by light weight models 
-as binary classiffiers
+as binary classifiers
 
-⚠️ Due to confidentiality matters, we are unable to share data set directly here.<br>
-If you need the access, contact any of us:<br>
-Arman Yazdani: [📧](mailto:m.arman.yazdani@gmail.com)<br>
-Fatemeh Shariftabaar: [📧](mailto:fatemeh.shariftabarazizi@gmail.com) 
+*Due to confidentiality matters, we are unable to share data set directly here.
+If you need the acces contact any of us:
+*
+(Arman Yazdani)[]
 
-## SqueezeNet [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]([https://colab.research.google.com/drive/your-notebook-id](https://colab.research.google.com/drive/1enJLc6_0KPY9EWcCQ5s7SlWT1Hf_LPSj#scrollTo=UXBwzRPCvT3r))
+## SqueezeNet
 We trained **SqueezeNet v1.1** from scratch with a custom lightweight classification head:
 
 - Final classifier:  
@@ -24,7 +24,7 @@ We trained **SqueezeNet v1.1** from scratch with a custom lightweight classifica
 
 
 
-## MobileNetV3small [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)]([https://colab.research.google.com/drive/your-notebook-id](https://colab.research.google.com/drive/1-iH35mfEr0HoMwtR-Y0k9UIpGQg7-Gmt#scrollTo=tNgwEdqjDevi))
+## MobileNetV3small
 
 We Fine-tuned MobileNetV3 Small, a lightweight convolutional neural network, pre-trained on ImageNet and fine-tuned for our binary classification task. Final layer adapted to output a single logit → Binary classification with BCEWithLogitsLoss
 
@@ -55,3 +55,56 @@ cd ...\your-directory\Lumen-Detection
 python app.py
 ```
 then follow to the given link and tadaa!
+
+
+# Lumen detection+
+Here we try to Improve our models to their best performance for lumen detection through systematic optimization and new training techniques. Further more, We focus on balancing accuracy with computational efficiency for practical deployment.
+## SqueezeNet
+Let's continue with the smaller/faster model!
+### Hyperparameter Optimization: Ray
+Used Ray Tune with ASHA scheduler for Bayesian optimization. Searched loguniform spaces for `lr (1e-4 to 1e-1)`, `weight_decay (1e-6 to 1e-2)`, and `batch_size [16,32,64]`. Maximized `val_acc` over 10 trials.
+<p align="center">
+    <img src="Images/3.png" alt="Descriptive Alt Text" class="fit-width-image">
+    <figcaption> Hyperparameter optimization with Ray</figcaption>
+</p>
+
+### Training: Curriculum Learning
+Our strategy combines a fixed curriculum of **Progressive Data Deblurring** with the **MixUp** regularization technique, executed using the previously optimized hyperparameters.
+<p align="center">
+    <img src="Images/4.png" alt="Descriptive Alt Text" class="fit-width-image">
+    <figcaption> Enahnced models performance</figcaption>
+</p>
+
+### Production Prototype: ONNX
+- Exported optimized models to ONNX format for production deployment.
+<p align="center">
+    <img src="Images/5.png" alt="Descriptive Alt Text" class="fit-width-image">
+    <figcaption> ONNX/Enhanced models performance</figcaption>
+</p>
+
+```markdown
+Avg PyTorch inference time per batch: 98.930 ms
+Avg ONNXRuntime inference time per batch: 20.431 ms
+```
+
+- Employed quantization techniques for potential edge deployment scenarios.
+```markdown
+PyTorch int8 inference time per batch (CPU): 103.658 ms
+ONNX int8 inference time per batch: 55.911 ms
+```
+```markdown
+Evaluating models...
+PyTorch INT8 Accuracy: 0.8627, F1_torch: 0.8574, AUC_torch: 0.8625
+ONNX INT8 Accuracy: 0.8513, F1_onnx: 0.8465, AUC_onnx: 0.8513
+```
+
+### A Bigger Stride: Knowledge Distillation
+Leveraged MobileNetV3 teacher to enhance SqueezeNet student performance. Combined hard and soft loss for effective knowledge transfer.
+<p align="center">
+    <img src="Images/6.png" alt="Descriptive Alt Text" class="fit-width-image">
+    <figcaption> Student(SqueezeNet) model's performance after knowledge distillation</figcaption>
+</p>
+
+```markdown
+Test Accuracy: 0.8738, F1: 0.8501, AUC: 0.9291
+```
