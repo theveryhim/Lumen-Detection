@@ -97,6 +97,35 @@ Evaluating models...
 PyTorch INT8 Accuracy: 0.8627, F1_torch: 0.8574, AUC_torch: 0.8625
 ONNX INT8 Accuracy: 0.8513, F1_onnx: 0.8465, AUC_onnx: 0.8513
 ```
+## MobileNetV3small
+In this phase, we've done below tasks:
+1. Realistic colonoscopy-specific augmentations:
+     Geometric (flip, rotation, affine transformations)
+     Photometric (lighting variations, contrast, saturation)
+     Noise and blur simulation to mimic motion artifacts 
+2. Systematic hyperparameter search for stable training:
+    Used Ray Tune with ASHA scheduler for Bayesian optimization.
+    BCE Loss:
+    search_space = {
+    "lr": tune.loguniform(1e-5, 1e-3),
+    "batch_size": tune.choice([16, 32, 64]),
+    "optimizer": tune.choice(["AdamW", "SGD"]),
+    "weight_decay": tune.loguniform(1e-6, 1e-2),
+    "momentum": tune.uniform(0.8, 0.99)
+    }
+    Focal Loss:
+    
+  
+4. Loss function comparison:
+    BCE Loss – standard binary classification.
+    Focal Loss (α=0.5) – emphasizes hard-to-classify samples.
+5. Hard example mining to focus on difficult cases.
+
+The overall workflow:
+<img width="893" height="1021" alt="image" src="https://github.com/user-attachments/assets/5a810a5f-b02d-4ae9-ba73-9ae49a50c3a7" />
+
+
+
 
 ### A Bigger Stride: Knowledge Distillation
 Leveraged MobileNetV3 teacher to enhance SqueezeNet student performance. Combined hard and soft loss for effective knowledge transfer.
