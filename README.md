@@ -101,13 +101,19 @@ ONNX INT8 Accuracy: 0.8513, F1_onnx: 0.8465, AUC_onnx: 0.8513
 In this phase, we've done below tasks:
 
 1. Realistic colonoscopy-specific augmentations:
-     Geometric (flip, rotation, affine transformations)
-     Photometric (lighting variations, contrast, saturation)
-     Noise and blur simulation to mimic motion artifacts
+
+| Augmentation Type | Purpose                                                |
+| ----------------- | ------------------------------------------------------ |
+| **Geometric**     | Simulate camera movements (flip, rotate, affine, zoom) |
+| **Photometric**   | Adjust brightness, contrast, saturation, hue           |
+| **Noise & Blur**  | Simulate real-world motion blur and camera noise       |
+
    
 3. Systematic hyperparameter search for stable training:
-    Used Ray Tune with ASHA scheduler for Bayesian optimization.
+
+   Used Ray Tune with ASHA scheduler for Bayesian optimization.
     BCE Loss:
+   
     search_space = {
     "lr": tune.loguniform(1e-5, 1e-3),
     "batch_size": tune.choice([16, 32, 64]),
@@ -117,9 +123,18 @@ In this phase, we've done below tasks:
     }
    
     Focal Loss:
-    
-  
-4. Loss function comparison:
+   
+    search_space = {
+        "gamma": tune.uniform(0.0, 4.0),
+        "lr": tune.loguniform(1e-5, 1e-3),
+        "weight_decay": tune.loguniform(1e-6, 1e-3),
+        "batch_size": tune.choice([8, 16, 32]),
+        "optimizer": tune.choice(["adam", "adamw", "sgd"]),
+        "momentum": tune.uniform(0.5, 0.99)  
+    }
+      
+5. Loss function comparison:
+   
     BCE Loss – standard binary classification.
     Focal Loss (α=0.5) – emphasizes hard-to-classify samples.
    
@@ -129,7 +144,70 @@ The overall workflow:
 
 <img width="893" height="1021" alt="image" src="https://github.com/user-attachments/assets/5a810a5f-b02d-4ae9-ba73-9ae49a50c3a7" />
 
+### Results: BCE vs. Focal Loss
+The comparison was conducted over 20 training epochs with the same dataset, augmentation pipeline, and hyperparameter tuning workflow.
 
+| Hyperparameter | BCE Best Value | Focal Loss Best Value |
+| -------------- | -------------- | --------------------- |
+| Learning Rate  | 0.0002997      | 0.00003432            |
+| Weight Decay   | 5.16e-05       | 1.03e-04              |
+| Batch Size     | 16             | 16                    |
+| Optimizer      | AdamW          | AdamW                 |
+| Momentum       | —              | —                     |
+| Focal Gamma    | —              | 0.8724                |
+
+#### Training and Validation Curves
+
+Loss Curves: Focal Loss converges faster and achieves a lower final loss, indicating better handling of challenging samples.
+
+Accuracy Curves: Both models surpassed 94% accuracy on validation data. Final accuracy was similar, suggesting that Focal Loss improves robustness rather than raw accuracy.
+
+<img width="847" height="697" alt="image" src="https://github.com/user-attachments/assets/f7aa7dce-0ccd-4b83-8406-6ff49e82ed71" />
+
+#### Classification Metrics on Test Set
+Focal Loss matches BCE for lumen detection while focusing on hard cases, which is crucial in clinical settings.
+
+| **Loss Function**   | **Accuracy** | **Class** | **Precision** | **Recall** | **F1-Score** |
+| ------------------- | ------------ | --------- | ------------- | ---------- | ------------ |
+| **BCE**             | **0.94**     | lumen     | 0.93          | 0.95       | 0.94         |
+|                     |              | no-lumen  | 0.95          | 0.95       | 0.94         |
+| **Focal (α = 0.5)** | **0.94**     | lumen     | 0.93          | 0.95       | 0.94         |
+|                     |              | no-lumen  | 0.95          | 0.92       | 0.93         |
+
+#### Grad-CAM Visualization
+Focal Loss encourages the model to attend to subtle, challenging features that are often missed by BCE.
+
+<img width="975" height="619" alt="image" src="https://github.com/user-attachments/assets/4e8764a8-7730-481f-8fee-b80155ed2e93" />
+
+#### Hard Example Evaluation
+1. Reduction of Dangerous Errors:
+
+Focal Loss reduced high-confidence incorrect predictions by ~33%.
+
+These are the most critical errors in medical imaging since the model is confident but wrong, which could mislead clinicians.
+
+2. Improved Calibration:
+
+Focal Loss pushes predictions closer to the 0.5 boundary for uncertain cases.
+
+This creates a well-calibrated model:
+
+High confidence → usually correct
+
+Low confidence → indicates uncertainty
+
+BCE, by contrast, tends to overfit, producing overly confident predictions even when incorrect.
+
+3. Model "Knows What It Doesn't Know":
+
+Focal Loss improves the model’s awareness of uncertainty, a hallmark of reliable AI in healthcare.
+
+| **Hard Example Type**           | **BCE** | **Focal Loss** |
+| ------------------------------- | ------- | -------------- |
+| Misclassified count             | 64      | 68             |
+| Low-confidence correct count    | 31      | **74**         |
+| High-confidence incorrect count | 33      | **22**         |
+| Borderline count                | 88      | **175**        |
 
 
 ### A Bigger Stride: Knowledge Distillation
